@@ -1,3 +1,4 @@
+name: Checkout and Create Release Version
 on:
   workflow_dispatch:
     inputs:
@@ -8,7 +9,7 @@ on:
 
 jobs:
   release:
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -17,12 +18,12 @@ jobs:
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
           git config --global user.email "${GITHUB_ACTOR}@users.noreply.github.com"
-          git tag -a v${{ github.event.inputs.tag }} -m "Release Version v${{ github.event.inputs.tag }}" || echo "Tag already exists"
-          git push origin v${{ github.event.inputs.tag }} || echo "Tag already exists"
+          git tag -a ${{ github.event.inputs.tag }} -m "Release Version ${{ github.event.inputs.tag }}" || echo "Tag already exists"
+          git push origin ${{ github.event.inputs.tag }} || echo "Tag already exists"
 
       - name: Create Release
         run: |
-          gh release create v${{ github.event.inputs.tag }} --notes "Release v${{ github.event.inputs.tag }}" || echo "Release already exists"
+          gh release create ${{ github.event.inputs.tag }} --notes "Release ${{ github.event.inputs.tag }}" || echo "Release already exists"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
@@ -32,9 +33,14 @@ jobs:
     strategy:
       matrix:
         platform: [manylinux]
-        arch: [x86_64, i686, aarch64, ppc64le, s390x]
+        arch: [x86_64, aarch64, ppc64le, s390x]
         os: [ubuntu-latest]
         pyver: [cp311, cp312]
+        manylinux: [manylinux_2_28]
+        # musllinux: [musllinux_1_1, musllinux_1_2]
+    env:
+      CIBW_BEFORE_ALL_LINUX: "curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y && yum install -y openssl-devel"
+      CIBW_ENVIRONMENT: 'PATH="$PATH:$HOME/.cargo/bin"'
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
@@ -49,13 +55,24 @@ jobs:
       - name: Build wheels
         uses: pypa/cibuildwheel@v2.17.0
         env:
-          CIBW_MANYLINUX_X86_64_IMAGE: manylinux2014
-          CIBW_MANYLINUX_I686_IMAGE: manylinux2014
-          CIBW_MANYLINUX_AARCH64_IMAGE: manylinux2014
-          CIBW_MANYLINUX_PPC64LE_IMAGE: manylinux2014
+          CIBW_MANYLINUX_X86_64_IMAGE: ${{matrix.manylinux}}
+          CIBW_MANYLINUX_I686_IMAGE: ${{matrix.manylinux}}
+          CIBW_MANYLINUX_PYPY_X86_64_IMAGE: ${{matrix.manylinux}}
+          CIBW_MANYLINUX_AARCH64_IMAGE: ${{matrix.manylinux}}
+          CIBW_MANYLINUX_PPC64LE_IMAGE: ${{matrix.manylinux}}
+          CIBW_MANYLINUX_S390X_IMAGE: ${{matrix.manylinux}}
+          CIBW_MANYLINUX_PYPY_AARCH64_IMAGE: ${{matrix.manylinux}}
+          CIBW_MANYLINUX_PYPY_I686_IMAGE: ${{matrix.manylinux}}
+          # CIBW_MUSLLINUX_X86_64_IMAGE: ${{matrix.musllinux}}
+          # CIBW_MUSLLINUX_I686_IMAGE: ${{matrix.musllinux}}
+          # CIBW_MUSLLINUX_AARCH64_IMAGE: ${{matrix.musllinux}}
+          # CIBW_MUSLLINUX_PPC64LE_IMAGE: ${{matrix.musllinux}}
+          # CIBW_MUSLLINUX_S390X_IMAGE: ${{matrix.musllinux}}
           CIBW_BUILD: ${{matrix.pyver}}-${{matrix.platform}}_${{matrix.arch}}
           CIBW_ARCHS_LINUX: auto aarch64 ppc64le s390x
 
       - name: Upload wheels
         run: |
-          gh release upload v${{ github.event.inputs.tag }} wheelhouse/*.whl
+          gh release upload ${{ github.event.inputs.tag }} wheelhouse/*.whl -R ${{ github.repository }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
