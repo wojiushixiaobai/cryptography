@@ -73,7 +73,7 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.17.0
+        uses: pypa/cibuildwheel@v2.19.2
         env:
           CIBW_MANYLINUX_X86_64_IMAGE: ${{matrix.manylinux}}
           CIBW_MANYLINUX_I686_IMAGE: ${{matrix.manylinux}}
@@ -93,6 +93,6 @@ jobs:
 
       - name: Upload wheels
         run: |
-          gh release upload ${{ env.version }} wheelhouse/*.whl -R ${{ github.repository }}
+          gh release upload ${{ env.version }} wheelhouse/*.whl -R ${{ github.repository }} --clobber
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
