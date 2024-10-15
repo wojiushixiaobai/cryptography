@@ -61,6 +61,6 @@ jobs:
 
       - name: Upload wheels
         run: |
-          gh release upload ${{ github.event.inputs.tag }} wheelhouse/*.whl -R ${{ github.repository }} --clobber
+          gh release upload ${{ github.event.inputs.tag }} wheelhouse/*.whl -R ${{ github.repository }} --clobber --latest=false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
