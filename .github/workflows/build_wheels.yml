@@ -23,7 +23,7 @@ jobs:
 
       - name: Create Release
         run: |
-          gh release create ${{ github.event.inputs.tag }} --notes "Release ${{ github.event.inputs.tag }}" || echo "Release already exists"
+          gh release create ${{ github.event.inputs.tag }} --notes "Release ${{ github.event.inputs.tag }}" --latest=false || echo "Release already exists"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
