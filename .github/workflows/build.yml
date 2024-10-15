@@ -3,32 +3,36 @@ on:
     branches:
       - main
   schedule:
-    - cron: '0 1 * * *'  
+    - cron: '0 1 * * *'
 
 name: Checkout and Create Release Version
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get_version.outputs.version }}
+      build: ${{ steps.check_release.outputs.build }}
     steps:
       - name: Get Version
         id: get_version
         run: |
             version=$(curl -s "https://api.github.com/repos/pyca/cryptography/tags" | jq -r '.[0].name')
             echo "version=${version}" >> $GITHUB_ENV
-    
+            echo "version=${version}" >> $GITHUB_OUTPUT
+
       - name: Check Release
+        id: check_release
         run: |
-          if gh release view ${{ env.version }} -R ${{ github.repository }} | grep cryptography-.*.whl; then
-            echo "Release already exists"
-            exit 1
+          if ! gh release view ${{ env.version }} -R ${{ github.repository }} | grep cryptography-.*.whl; then
+            echo "build=true" >> $GITHUB_OUTPUT
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Checkout Code
         uses: actions/checkout@v4
-      
+
       - name: Create Tag
         run: |
           git config --global user.name "${GITHUB_ACTOR}"
@@ -45,14 +49,10 @@ jobs:
   build:
     needs: check
     runs-on: ${{ matrix.os }}
+    if: ${{ needs.check.outputs.build == 'true' }}
     strategy:
       matrix:
-        platform: [manylinux]
-        arch: [x86_64, aarch64, ppc64le, s390x]
         os: [ubuntu-latest]
-        pyver: [cp311, cp312]
-        manylinux: [manylinux_2_28]
-        # musllinux: [musllinux_1_1, musllinux_1_2]
     env:
       CIBW_BEFORE_ALL_LINUX: "curl https://sh.rustup.rs -sSf | sh -s -- --default-toolchain stable -y && yum install -y openssl-devel"
       CIBW_ENVIRONMENT: 'PATH="$PATH:$HOME/.cargo/bin"'
@@ -60,8 +60,9 @@ jobs:
       - name: Get Version
         id: get_version
         run: |
-            version=$(curl -s "https://api.github.com/repos/pyca/cryptography/tags" | jq -r '.[0].name')
+            version=${{ needs.check.outputs.version }}
             echo "version=${version}" >> $GITHUB_ENV
+            echo "Current Version: ${{ env.version }}"
 
       - name: Checkout Repo
         uses: actions/checkout@v4
@@ -73,22 +74,9 @@ jobs:
         uses: docker/setup-qemu-action@v3
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.19.2
+        uses: pypa/cibuildwheel@v2.21.3
         env:
-          CIBW_MANYLINUX_X86_64_IMAGE: ${{matrix.manylinux}}
-          CIBW_MANYLINUX_I686_IMAGE: ${{matrix.manylinux}}
-          CIBW_MANYLINUX_PYPY_X86_64_IMAGE: ${{matrix.manylinux}}
-          CIBW_MANYLINUX_AARCH64_IMAGE: ${{matrix.manylinux}}
-          CIBW_MANYLINUX_PPC64LE_IMAGE: ${{matrix.manylinux}}
-          CIBW_MANYLINUX_S390X_IMAGE: ${{matrix.manylinux}}
-          CIBW_MANYLINUX_PYPY_AARCH64_IMAGE: ${{matrix.manylinux}}
-          CIBW_MANYLINUX_PYPY_I686_IMAGE: ${{matrix.manylinux}}
-          # CIBW_MUSLLINUX_X86_64_IMAGE: ${{matrix.musllinux}}
-          # CIBW_MUSLLINUX_I686_IMAGE: ${{matrix.musllinux}}
-          # CIBW_MUSLLINUX_AARCH64_IMAGE: ${{matrix.musllinux}}
-          # CIBW_MUSLLINUX_PPC64LE_IMAGE: ${{matrix.musllinux}}
-          # CIBW_MUSLLINUX_S390X_IMAGE: ${{matrix.musllinux}}
-          CIBW_BUILD: ${{matrix.pyver}}-${{matrix.platform}}_${{matrix.arch}}
+          CIBW_PROJECT_REQUIRES_PYTHON: ">=3.11"
           CIBW_ARCHS_LINUX: auto aarch64 ppc64le s390x
 
       - name: Upload wheels
